@@ -1,3 +1,4 @@
+from pprint import pp
 import lark
 grammaire = lark.Lark(r"""
 exp : SIGNED_NUMBER                     -> exp_nombre
@@ -9,6 +10,8 @@ exp : SIGNED_NUMBER                     -> exp_nombre
 | INTEGER                               -> exp_var_int
 | exp OPBIN exp                         -> exp_opbin
 | "(" exp ")"                           -> exp_par
+| NAME"(" var_list ")"         -> call_function 
+
 
 bcom : (com)*
 
@@ -17,7 +20,7 @@ com : lhs "=" exp ";"                   -> assignation
 | "while" "(" exp ")" "{" bcom "}"      -> while
 | "print" "(" exp ")"                   -> print
 
-prg : "main" "(" var_list ")" "{" bcom "return" "(" exp ")" ";" "}" 
+prg : bfunction "main" "(" var_list ")" "{" bcom "return" "(" exp ")" ";" "}" 
 
 var_list :                              -> vide
 | IDENTIFIER ("," IDENTIFIER)*          -> aumoinsune
@@ -32,6 +35,12 @@ TABLE : "t" /[a-zA-Z0-9]*/
 INTEGER: "i" /[a-zA-Z0-9]*/
 
 OPBIN : /[+*\->]/
+
+NAME : /[a-zA-Z]+/
+
+function : NAME "(" var_list ")" "{" bcom "return" "(" exp ")" ";" "}" 
+
+bfunction : (function)*
 
 %import common.WS
 %import common.SIGNED_NUMBER
@@ -52,6 +61,8 @@ def pp_exp(e) :
         return f"len({e.children[0].value})"
     elif e.data == "exp_concat":
         return f"concat({e.children[0].value}, {e.children[1].value})"
+    elif e.data == "call_function":
+        return f"{e.children[0].value} ({pp_var_list(e.children[1])}) "
     else:#opbinaire
         return f"{pp_exp(e.children[0])} {e.children[1].value} {pp_exp(e.children[2])}"
 
@@ -65,8 +76,21 @@ def pp_com(c) :
     elif c.data == "print":
         return f"print({pp_exp(c.children[0])})"
 
+def pp_fun(f):
+    N = pp_name(f.children[0])
+    L = pp_var_list(f.children[1])
+    C = pp_bcom(f.children[2])
+    R = pp_exp(f.children[3])
+    return "%s(%s) {%s return (%s);\n}" % (N,L,C,R)
+
+def pp_name(n):
+    return f"{n.value}"
+
 def pp_bcom(bc) :
     return "\n"  + "\n".join([pp_com(c) for c in bc.children]) +"\n"
+
+def pp_bfun(bf) :
+    return "\n"  + "\n".join([pp_fun(c) for c in bf.children]) +"\n"
 
 def pp_lhs(l) :
     if l.data == "ele_tab":
@@ -75,16 +99,26 @@ def pp_lhs(l) :
         return l.children[0].value
 
 def pp_prg(p) :
-    L = pp_var_list(p.children[0])
-    C = pp_bcom(p.children[1])
-    R = pp_exp(p.children[2])
-    return "main (%s) {%s return (%s);\n}" % (L,C,R)
+    F = pp_bfun(p.children[0])
+    L = pp_var_list(p.children[1])
+    C = pp_bcom(p.children[2])
+    R = pp_exp(p.children[3])
+    return "%s main (%s) {%s return (%s);\n}" % (F,L,C,R)
 
 def pp_var_list(vl) :
     return ", ".join([t.value for t in vl.children])
 
 #examples
-print(pp_prg(grammaire.parse("main(iX,tY){ix = tY; return (ix);}")))
+print(pp_prg(grammaire.parse("""
+f(ix){
+    iy = ix;
+    return (iy);
+}
+
+main(iX,tY){
+    ix = f(tY); 
+    return (ix);
+}""")))
 
 
 
