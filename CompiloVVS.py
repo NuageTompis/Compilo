@@ -24,7 +24,7 @@ lhs: TABLE"[" exp "]"                   -> ele_tab
 IDENTIFIER : TABLE | INTEGER
 TABLE : "t" /[a-zA-Z0-9]*/
 INTEGER: "i" /[a-zA-Z0-9]*/
-OPBIN : /[+*\->]/ | "concat"
+OPBIN : /[+*\->]/ | "concat" | "mult"
 NAME : "f" /[a-zA-Z]*/
 function : NAME "(" var_list ")" "{" bcom "return" "(" exp ")" ";" "}" 
 bfunction : (function)*
@@ -186,7 +186,6 @@ def asm_exp(e) :
             add r12, r11
             add r11, rcx
             add rax, rcx
-            mov r10, [rax]
 
 
             debut{n} : cmp rbx,0
@@ -202,8 +201,37 @@ def asm_exp(e) :
     fin{n} : nop    
             mov rax, r8                                                                      
                 """
-            # MOV DANS RAX L'ADRESSE DU NV TAB (r8)
             return a
+        elif e.children[1].value == "mult" :
+            n = next()
+            return f"""
+            {E2}
+            push rax
+            {E1}
+            pop r10
+            mov rbx, [r10]
+            mov rdx, rax
+            mov r14, rdx
+            mov r9, 8
+            mov rax, 8
+            mul rbx
+            mov r11, r10
+            add r11, rax
+
+            debut{n} : cmp rbx,0
+            jz fin{n}
+
+            mov rax, QWORD [r11]
+            mul r14
+            mov QWORD [r11], rax
+
+            sub r11, r9
+            dec rbx
+            jmp debut{n}
+    fin{n} : nop    
+
+            mov rax, rcx
+            """
         elif e.children[1].value in {'+', '-'}  :
             return f"""
             {E2}
@@ -400,21 +428,15 @@ def asm_prg(p) :
 def pp_var_list(vl) :
     return ", ".join([t.value for t in vl.children])
 
-#examples
-ast = grammairePrg.parse("""main(ix,iy,iz){
-    while(ix){
-        ix = ix - 1;
-        iy = iy + 1;
-    }
-    t1 = int[4];
-    t2 = int[5];
-    t1[0] = 1;
-    t2[1] = 2;
-    t3 = t1 concat t2;
-    
-    return (t3[5]);
-}
-""")
+
+
+# Assemblage du code
+program = open("programme.txt", "r")
+code = ""
+lines  = program.readlines()
+for line in lines :
+    code += line
+ast = grammairePrg.parse(code)
 
 asm = asm_prg(ast)
 
