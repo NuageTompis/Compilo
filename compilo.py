@@ -4,11 +4,16 @@ import lark
 
 grammaire = lark.Lark(r"""
 exp : SIGNED_NUMBER                     -> exp_nombre
-| IDENTIFIER                            -> exp_var
+| TABLE                                 -> exp_var_tab
+| TABLE"[" exp "]"                      -> exp_elem_tab
+| "int[" exp "]"                        -> exp_tab_inst
+| "len(" TABLE ")"                      -> exp_len
+| "concat(" TABLE "," TABLE ")"         -> exp_concat
+| INTEGER                               -> exp_var_int
 | exp OPBIN exp                         -> exp_opbin
 | "(" exp ")"                           -> exp_par
 
-com : IDENTIFIER "=" exp ";"            -> assignation
+com : LHS "=" exp ";"                   -> assignation
 | "if" "(" exp ")" "{" bcom "}"         -> if
 | "while" "(" exp ")" "{" bcom "}"      -> while
 | "print" "(" exp ")"                   -> print
@@ -18,7 +23,13 @@ prg : "main" "(" var_list ")" "{" bcom "return" "(" exp ")" ";" "}"
 var_list :                              -> vide
 | IDENTIFIER ("," IDENTIFIER)*          -> aumoinsune
 
-IDENTIFIER : /[a-zA-Z][a-zA-Z0-9]*/
+IDENTIFIER : TABLE | INTEGER
+
+TABLE : "t" /[a-zA-Z0-9]*/
+
+INTEGER: "i" /[a-zA-Z0-9]*/
+
+LHS: TABLE"[" exp "]" | IDENTIFIER
 
 OPBIN : /[+*\->]/
 
