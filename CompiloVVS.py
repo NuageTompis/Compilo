@@ -209,23 +209,33 @@ def asm_exp(e) :
             push rax
             {E1}
             pop r10
+            push rax
+
+            mov rcx, 8
+            mul rcx
+            call malloc
+            mov rcx, rax
+
+
             mov rbx, [r10]
-            mov rdx, rax
+            pop rdx
             mov r14, rdx
             mov r9, 8
             mov rax, 8
             mul rbx
             mov r11, r10
             add r11, rax
+            add rcx, rax
 
             debut{n} : cmp rbx,0
             jz fin{n}
 
             mov rax, QWORD [r11]
             mul r14
-            mov QWORD [r11], rax
+            mov QWORD [rcx], rax
 
             sub r11, r9
+            sub rcx, r9
             dec rbx
             jmp debut{n}
     fin{n} : nop    
