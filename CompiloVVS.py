@@ -15,6 +15,7 @@ com : lhs "=" exp ";"                   -> assignation
 | "if" "(" exp ")" "{" bcom "}"         -> if
 | "while" "(" exp ")" "{" bcom "}"      -> while
 | "print" "(" exp ")"                   -> print
+| "sort" "(" exp ")"                    -> sort
 prg : "main" "(" var_list ")" "{" bcom "return" "(" exp ")" ";" "}" 
 var_list :                              -> vide
 | IDENTIFIER ("," IDENTIFIER)*          -> aumoinsune
@@ -24,7 +25,7 @@ lhs: TABLE"[" exp "]"                   -> ele_tab
 IDENTIFIER : TABLE | INTEGER
 TABLE : "t" /[a-zA-Z0-9]*/
 INTEGER: "i" /[a-zA-Z0-9]*/
-OPBIN : /[+*\->]/ | "concat" | "mult" | "add" | "times" | "sum" | "minus" | "sub"
+OPBIN : /[+*\->]/ | "concat" | "mult" | "add" | "sum" | "times" | "sub" | "minus"
 NAME : "f" /[a-zA-Z]*/
 function : NAME "(" var_list ")" "{" bcom "return" "(" exp ")" ";" "}" 
 bfunction : (function)*
@@ -33,7 +34,6 @@ bfunction : (function)*
 %ignore WS
 """)
 grammairePrg = lark.Lark(grammaire, start = "prg")
-
 
 def pp_exp(e) :
     if e.data in {"exp_nombre", "exp_var_int", "exp_var_tab"} :
@@ -53,7 +53,7 @@ def pp_exp(e) :
         return f"{pp_exp(e.children[0])} {e.children[1].value} {pp_exp(e.children[2])}"
 
 
-op = { '+' : "add", '-' : "sub", '*' : "mul", 'mult': "mul", 'add' : "add rax ,", 'times': "mul", 'sum': "add rax," ,'sub':"sub rax,",'minus':"sub rax,"}
+op = { '+' : "add", '-' : "sub", '*' : "mul", "mult" : "mul r14", "add" : "add rax, r14", "sub" : "sub rax, r14", "sum" : "add rax, r13", "minus" : "sub rax, r13", "times" : "mul r13"}
 def asm_exp(e) :
     if e.data == "exp_nombre":
         return f"mov rax, {e.children[0].value}\n"
@@ -155,10 +155,14 @@ def asm_exp(e) :
             mov r12, r11
             add r12, r8
             add r11, rcx
+
+
             debut{n} : cmp rbx,0
             jz fin{n}
+
             mov r13, [r11]
             mov [r12], r13
+
             sub r12, r9
             sub r11, r9
             dec rbx
@@ -171,6 +175,8 @@ def asm_exp(e) :
             a = a + f"""
             pop r15
             add r12, r15
+
+
             pop rcx
             mov rbx, [rcx]
             
@@ -180,10 +186,14 @@ def asm_exp(e) :
             add r12, r11
             add r11, rcx
             add rax, rcx
+
+
             debut{n} : cmp rbx,0
             jz fin{n}
+
             mov r13, [r11]
             mov [r12], r13
+
             sub r12, r9
             sub r11, r9
             dec rbx
@@ -192,51 +202,8 @@ def asm_exp(e) :
             mov rax, r8                                                                      
                 """
             return a
-        elif e.children[1].value in {"mult", "add", "sub"} :
-            n = next()
-            E3 = op[e.children[1]]
-            return f"""
-            {E2}
-            push rax
-            {E1}
-            pop r10
-            push rax
-            mov rcx, 8
-            mul rcx
-            call malloc
-            mov rcx, rax
-            mov rbx, [r10]
-            pop rdx
-            mov r14, rdx
-            mov r9, 8
-            mov rax, 8
-            mul rbx
-            mov r11, r10
-            add r11, rax
-            add rcx, rax
-            debut{n} : cmp rbx,0
-            jz fin{n}
-            mov rax, QWORD [r11]
-            {E3} r14
-            mov QWORD [rcx], rax
-            sub r11, r9
-            sub rcx, r9
-            dec rbx
-            jmp debut{n}
-    fin{n} : nop    
-            mov rax, rcx
-            """
-        elif e.children[1].value in {'+', '-'}  :
-            return f"""
-            {E2}
-            push rax
-            {E1}
-            pop rbx
-            {op[e.children[1].value]} rax,rbx
-            """
         elif e.children[1].value in {"times", "sum", "minus"} :
-            # On push les adresses des 2 tableaux et on met la somme de leur longueur dans rax
-            E3 = op[e.children[1]]
+            # On push les adresses des 2 tableaux et on met la longueur du premier dans rax
             a =  f"""
             {E2}
             push rax
@@ -279,23 +246,77 @@ def asm_exp(e) :
             mov r11, rax
             mov r12, r11
             add r12, r8
-            add r10 , r11
+            add r10, r11
             add r11, rcx
+
+
             debut{n} : cmp rbx,0
             jz fin{n}
+
             mov r13, [r11]
             mov rax, [r10]
-            {E3} r13
+            {op[e.children[1].value]}
             mov [r12], rax
+
             sub r12, r9
             sub r11, r9
             sub r10, r9
             dec rbx
             jmp debut{n}
-    fin{n} : nop                                                                          
-            mov rax, r8                                                                      
+    fin{n} : nop  
+
+            mov rax, r8                                                                   
                 """
             return a
+
+        elif e.children[1].value in {"add", "mult", "sub"} :
+            n = next()
+            return f"""
+            {E2}
+            push rax
+            {E1}
+            pop r10
+            push rax
+
+            mov rcx, 8
+            mul rcx
+            call malloc
+            mov rcx, rax
+
+
+            mov rbx, [r10]
+            pop rdx
+            mov r14, rdx
+            mov r9, 8
+            mov rax, 8
+            mul rbx
+            mov r11, r10
+            add r11, rax
+            add rcx, rax
+
+            debut{n} : cmp rbx,0
+            jz fin{n}
+
+            mov rax, QWORD [r11]
+            {op[e.children[1].value]}
+            mov QWORD [rcx], rax
+
+            sub r11, r9
+            sub rcx, r9
+            dec rbx
+            jmp debut{n}
+    fin{n} : nop    
+
+            mov rax, rcx
+            """
+        elif e.children[1].value in {'+', '-'}  :
+            return f"""
+            {E2}
+            push rax
+            {E1}
+            pop rbx
+            {op[e.children[1].value]} rax,rbx
+            """
 
 
 
@@ -317,7 +338,7 @@ def vars_com(c) :
         B = vars_bcom(c.children[1])
         E = vars_exp(c.children[0])
         return B | E
-    elif c.data == "print":
+    elif c.data in {"print", "sort"}:
         return vars_exp(c.children[0])
 
 def vars_exp(e) :
@@ -389,6 +410,53 @@ fin{n} : nop"""
         mov rdi, fmt
         mov rsi, rax
         call printf
+        """
+    elif c.data == "sort" :
+        E = asm_exp(c.children[0])
+        n = next()
+        next()
+        next()
+        # Nous allons trier le tableaun à l'aide d'un tri sélection
+        # L'adresse du tableau est dans rax
+        # r10 contient le nombre d'éléments qu'il reste à trier
+        # r8 contient l'adresse de l'élément qu'on compare
+        # r9 contient sa valeur
+        # r12 contient l'indice qui a la valeur minimale
+        # r13 contient cette valeur
+        # r15 contient la valeur intermédiaire pour le switch
+        return f"""
+        {E}
+        mov r8, rax
+        mov rbx, [r8]
+        mov r10, rbx
+        dec r10
+
+        debut{n} : cmp rbx, 0
+    jz fin{n}
+        add r8, 8
+        mov r9, [r8]
+        mov r12, r8
+        mov r13, r9
+        mov r11, r8
+        debut{n+1} : cmp r10, 0
+        jz fin{n+1}
+            add r11, 8
+            debut{n+2} : cmp r13, [r11]
+            jl fin{n+2}
+                mov r12, r11
+                mov r13, [r12]
+            fin{n+2} : nop
+            dec r10
+        jmp debut{n+1}
+        fin{n+1} : nop
+        mov r15, [r8]
+        mov [r8], r13
+        mov [r12], r15
+        dec rbx
+        mov r10, rbx
+        dec r10
+    jmp debut{n}
+    fin{n} : nop
         """
 
 def pp_fun(f):
@@ -487,7 +555,7 @@ def pp_var_list(vl) :
 
 
 # Assemblage du code
-program = open("test_add.txt", "r")
+program = open("programme.txt", "r")
 code = ""
 lines  = program.readlines()
 for line in lines :
