@@ -24,7 +24,7 @@ lhs: TABLE"[" exp "]"                   -> ele_tab
 IDENTIFIER : TABLE | INTEGER
 TABLE : "t" /[a-zA-Z0-9]*/
 INTEGER: "i" /[a-zA-Z0-9]*/
-OPBIN : /[+*\->]/ | "concat" | "mult"
+OPBIN : /[+*\->]/ | "concat" | "mult" | "add" | "sum"
 NAME : "f" /[a-zA-Z]*/
 function : NAME "(" var_list ")" "{" bcom "return" "(" exp ")" ";" "}" 
 bfunction : (function)*
@@ -33,7 +33,6 @@ bfunction : (function)*
 %ignore WS
 """)
 grammairePrg = lark.Lark(grammaire, start = "prg")
-grammaireExp = lark.Lark(grammaire, start = "exp")
 
 def pp_exp(e) :
     if e.data in {"exp_nombre", "exp_var_int", "exp_var_tab"} :
@@ -53,7 +52,7 @@ def pp_exp(e) :
         return f"{pp_exp(e.children[0])} {e.children[1].value} {pp_exp(e.children[2])}"
 
 
-op = { '+' : "add", '-' : "sub", '*' : "mul"}
+op = { '+' : "add", '-' : "sub", '*' : "mul", "mult" : "mul r14", "add" : "add rax, r14"}
 def asm_exp(e) :
     if e.data == "exp_nombre":
         return f"mov rax, {e.children[0].value}\n"
@@ -202,30 +201,40 @@ def asm_exp(e) :
             mov rax, r8                                                                      
                 """
             return a
-        elif e.children[1].value == "mult" :
+        elif e.children[1].value in {"add", "mult"} :
             n = next()
             return f"""
             {E2}
             push rax
             {E1}
             pop r10
+            push rax
+
+            mov rcx, 8
+            mul rcx
+            call malloc
+            mov rcx, rax
+
+
             mov rbx, [r10]
-            mov rdx, rax
+            pop rdx
             mov r14, rdx
             mov r9, 8
             mov rax, 8
             mul rbx
             mov r11, r10
             add r11, rax
+            add rcx, rax
 
             debut{n} : cmp rbx,0
             jz fin{n}
 
             mov rax, QWORD [r11]
-            mul r14
-            mov QWORD [r11], rax
+            {op[e.children[1].value]}
+            mov QWORD [rcx], rax
 
             sub r11, r9
+            sub rcx, r9
             dec rbx
             jmp debut{n}
     fin{n} : nop    
