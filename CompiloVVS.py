@@ -16,6 +16,7 @@ com : lhs "=" exp ";"                   -> assignation
 | "while" "(" exp ")" "{" bcom "}"      -> while
 | "print" "(" exp ")"                   -> print
 | "sort" "(" exp ")"                    -> sort
+| "tableprint" "(" exp ")"              -> tab_print
 prg : "main" "(" var_list ")" "{" bcom "return" "(" exp ")" ";" "}" 
 var_list :                              -> vide
 | IDENTIFIER ("," IDENTIFIER)*          -> aumoinsune
@@ -338,7 +339,7 @@ def vars_com(c) :
         B = vars_bcom(c.children[1])
         E = vars_exp(c.children[0])
         return B | E
-    elif c.data in {"print", "sort"}:
+    elif c.data in {"print", "sort", "tab_print"}:
         return vars_exp(c.children[0])
 
 def vars_exp(e) :
@@ -410,6 +411,32 @@ fin{n} : nop"""
         mov rdi, fmt
         mov rsi, rax
         call printf
+        """
+    elif c.data == "tab_print" :
+        E = asm_exp(c.children[0])
+        n = next()
+        return f"""
+        {E}
+        mov rbx, [rax]
+        mov r11, rax
+        debut{n} : cmp rbx, 0
+        jz fin{n}
+            add r11, 8
+            mov rax, [r11]
+            mov rdi, fmt
+            mov rsi, rax
+            push rbx
+            push r11
+            push rax
+            push rdi
+            call printf
+            pop rdi
+            pop rax
+            pop r11
+            pop rbx
+            dec rbx
+        jmp debut{n}
+    fin{n} : nop
         """
     elif c.data == "sort" :
         E = asm_exp(c.children[0])
