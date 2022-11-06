@@ -20,7 +20,8 @@ prg : bfunction "main" "(" var_list ")" "{" bcom "return" "(" exp ")" ";" "}"
 var_list :                       -> vide
 | IDENTIFIER (","  IDENTIFIER)*  -> aumoinsune
 
-arg_list : exp ("," exp)
+ARG : IDENTIFIER | SIGNED_NUMBER
+arg_list : ARG ("," ARG)*
 
 IDENTIFIER : /[a-zA-Z][a-zA-Z0-9]*/
 OPBIN : /[+\-*>]/
@@ -52,8 +53,8 @@ def asm_exp(e) :
             if v.data == "exp_nombre":
                 s = s + f"push {v.value} \n"
             else:
-                s = s + f"push [{e.value}] \n"
-        s = s + f"call {e.children[0].data} \n" #la valeur retournée est bien dans rax
+                s = s + f"push [{v.value}] \n"
+        s = s + f"call {e.children[0].value} \n" #la valeur retournée est bien dans rax
         s = s + "add rsp, 8" # restauration du pointeur de la pile
         return s
     else:
@@ -76,11 +77,9 @@ def vars_exp(e) :
         return vars_exp(e.children[0])
     elif e.data == "call_function":
         s = set()
-        for i in e.children[1]:
-            if i.data == "exp_var":
+        for i in e.children[1].children:
+            if i.type == "exp_var":
                 s = s | {i.value}
-            elif i.data == "exp_bin":
-                s = s | vars_exp(i)
         return s
     else:
         L = vars_exp(e.children[0])
@@ -196,10 +195,11 @@ def vars_bfunction(bf):
     return S
 
 def vars_prg(p) :
+    F = vars_bfunction(p.children[0])
     L = set([t.value for t in p.children[1].children])
     C = vars_bcom(p.children[2])
     R = vars_exp(p.children[3])
-    return  L | C | R
+    return  F | L | C | R
 
 def pp_bfun(bf) :
     return "\n"  + "\n".join([pp_fun(c) for c in bf.children]) +"\n"
@@ -218,21 +218,18 @@ def asm_fun(f):
     # Sauvegarde de l'ancien base pointer 
     # Initialisation nouveau base pointer 
     # Reservation place pour variable locale
-    s="""
-    .type {f.children[0].value},@function
-    {f.children[0].value} 
+    s=f"""
+    {f.children[0].value}: 
     push rbp
     mov rbp, rsp
     """
     # Allocation variables
-    liste = vars_fun(f)
+    liste = list(vars_fun(f))
     longueur = len(liste)
-    s = s + f"sub rsp 8*{longueur}]"
+    s = s + f"sub rsp, {8*longueur}\n"
     # Déclaration des variables locales
-    d=""
-    for i in range(len(liste)):
-        d = d + f"mov rbp-{8*(i+1)}, {liste[i]}"
-    s = s + d
+    
+   
     # Sauvegarde des arguemnts : attention le premier argument se trouve en +16
     for i in range(len(f.children[1].children)) :
         v = f.children[1].children[i].value
@@ -248,9 +245,9 @@ def asm_fun(f):
     ret = asm_exp(f.children[3])
     s = s + ret
     # fin 
-    s = s + "mov rsp, rbp" # stack pointer ramené au niveau de base pointer
-    s = s + "pop rbp"     # on restore le base pointer
-    s = s + "ret"
+    s = s + "mov rsp, rbp\n" # stack pointer ramené au niveau de base pointer
+    s = s + "pop rbp\n"     # on restore le base pointer
+    s = s + "ret\n"
 
     return s
 
@@ -283,10 +280,20 @@ def pp_var_list(vl) :
     return ", ".join([t.value for t in vl.children])
 
 def pp_arg_list(l) :
-    return ", ".join([pp_exp(e) for e in l.children])
+    return ", ".join([a.value for a in l.children])
 
 #examples
 print(pp_prg(grammaire.parse("""
+f(i){
+    iy = i;
+    return (iy);
+}
+
+main(iX,tY){
+    ix = f(tY); 
+    return (ix);
+}""")))
+ast = grammaire.parse("""
 f(ix){
     iy = ix;
     return (iy);
@@ -295,6 +302,13 @@ f(ix){
 main(iX,tY){
     ix = f(tY); 
     return (ix);
-}""")))
+}""")
+
+
+
+asm = asm_prg(ast)
+f = open("ouf.asm", "w")
+f.write(asm)
+f.close()
 
 
