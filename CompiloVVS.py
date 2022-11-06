@@ -24,7 +24,7 @@ lhs: TABLE"[" exp "]"                   -> ele_tab
 IDENTIFIER : TABLE | INTEGER
 TABLE : "t" /[a-zA-Z0-9]*/
 INTEGER: "i" /[a-zA-Z0-9]*/
-OPBIN : /[+*\->]/ | "concat" | "mult" | "add" | "sum"
+OPBIN : /[+*\->]/ | "concat" | "mult" | "add" | "times" | "sum" | "minus" | "sub"
 NAME : "f" /[a-zA-Z]*/
 function : NAME "(" var_list ")" "{" bcom "return" "(" exp ")" ";" "}" 
 bfunction : (function)*
@@ -33,6 +33,7 @@ bfunction : (function)*
 %ignore WS
 """)
 grammairePrg = lark.Lark(grammaire, start = "prg")
+
 
 def pp_exp(e) :
     if e.data in {"exp_nombre", "exp_var_int", "exp_var_tab"} :
@@ -52,7 +53,7 @@ def pp_exp(e) :
         return f"{pp_exp(e.children[0])} {e.children[1].value} {pp_exp(e.children[2])}"
 
 
-op = { '+' : "add", '-' : "sub", '*' : "mul", "mult" : "mul r14", "add" : "add rax, r14"}
+op = { '+' : "add", '-' : "sub", '*' : "mul", 'mult': "mul", 'add' : "add rax ,", 'times': "mul", 'sum': "add rax," ,'sub':"sub rax,",'minus':"sub rax,"}
 def asm_exp(e) :
     if e.data == "exp_nombre":
         return f"mov rax, {e.children[0].value}\n"
@@ -154,14 +155,10 @@ def asm_exp(e) :
             mov r12, r11
             add r12, r8
             add r11, rcx
-
-
             debut{n} : cmp rbx,0
             jz fin{n}
-
             mov r13, [r11]
             mov [r12], r13
-
             sub r12, r9
             sub r11, r9
             dec rbx
@@ -174,8 +171,6 @@ def asm_exp(e) :
             a = a + f"""
             pop r15
             add r12, r15
-
-
             pop rcx
             mov rbx, [rcx]
             
@@ -185,14 +180,10 @@ def asm_exp(e) :
             add r12, r11
             add r11, rcx
             add rax, rcx
-
-
             debut{n} : cmp rbx,0
             jz fin{n}
-
             mov r13, [r11]
             mov [r12], r13
-
             sub r12, r9
             sub r11, r9
             dec rbx
@@ -201,21 +192,19 @@ def asm_exp(e) :
             mov rax, r8                                                                      
                 """
             return a
-        elif e.children[1].value in {"add", "mult"} :
+        elif e.children[1].value in {"mult", "add", "sub"} :
             n = next()
+            E3 = op[e.children[1]]
             return f"""
             {E2}
             push rax
             {E1}
             pop r10
             push rax
-
             mov rcx, 8
             mul rcx
             call malloc
             mov rcx, rax
-
-
             mov rbx, [r10]
             pop rdx
             mov r14, rdx
@@ -225,20 +214,16 @@ def asm_exp(e) :
             mov r11, r10
             add r11, rax
             add rcx, rax
-
             debut{n} : cmp rbx,0
             jz fin{n}
-
             mov rax, QWORD [r11]
-            {op[e.children[1].value]}
+            {E3} r14
             mov QWORD [rcx], rax
-
             sub r11, r9
             sub rcx, r9
             dec rbx
             jmp debut{n}
     fin{n} : nop    
-
             mov rax, rcx
             """
         elif e.children[1].value in {'+', '-'}  :
@@ -249,6 +234,68 @@ def asm_exp(e) :
             pop rbx
             {op[e.children[1].value]} rax,rbx
             """
+        elif e.children[1].value in {"times", "sum", "minus"} :
+            # On push les adresses des 2 tableaux et on met la somme de leur longueur dans rax
+            E3 = op[e.children[1]]
+            a =  f"""
+            {E2}
+            push rax
+            {E1}
+            pop rbx
+            mov rcx, [rax]
+            push rbx
+            push rax
+            mov rax, rcx
+            """
+
+            # On crée un nouveau tableau de la bonne longueur, son adresse est dans rax
+            a = a + f"""
+            push rax 
+            mov rbx, 8
+            mul rbx
+            add eax, 8
+            mov rdi, rax
+            call malloc
+            mov [rcx], rax
+            mov rbx, [rcx]  
+            pop rax
+            mov [rbx], QWORD rax
+            mov rax, rbx  
+            """
+
+            # On copie les éléments du premier tableau
+            # Le nouveau tableau est à l'adresse r8 et l'ancien dans rcx
+            # On ajoute les éléments du dernier au premier, aux adresses r12 et r11 respectivement pour l'adresse dans le nouveau et l'ancien tableau
+            n = next()
+            a = a + f"""
+            pop rcx
+            pop r10
+            mov rbx, [rcx]
+            mov r8, rax
+            mov r9, 8
+            
+            mov rax, rbx
+            mul r9
+            mov r11, rax
+            mov r12, r11
+            add r12, r8
+            add r10 , r11
+            add r11, rcx
+            debut{n} : cmp rbx,0
+            jz fin{n}
+            mov r13, [r11]
+            mov rax, [r10]
+            {E3} r13
+            mov [r12], rax
+            sub r12, r9
+            sub r11, r9
+            sub r10, r9
+            dec rbx
+            jmp debut{n}
+    fin{n} : nop                                                                          
+            mov rax, r8                                                                      
+                """
+            return a
 
 
 
@@ -440,7 +487,7 @@ def pp_var_list(vl) :
 
 
 # Assemblage du code
-program = open("programme.txt", "r")
+program = open("test_add.txt", "r")
 code = ""
 lines  = program.readlines()
 for line in lines :
