@@ -1,0 +1,7 @@
+main(ix){
+t1 = int[(3*ix)+9];
+t1[ix] = 2*ix;
+print(t1[ix])
+print(len(t1))
+return (0);
+}
