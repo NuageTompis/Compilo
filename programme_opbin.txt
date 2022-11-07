@@ -1,0 +1,15 @@
+main(ix, iy) {
+ta = int[2];
+ta[0] = -1;
+ta[1] = 2;
+tb = int[2];
+tb[0] = ix;
+tb[1] = iy;
+
+t3 = ta times tb;
+tableprint(t3)
+t4 = ta sum tb;
+tableprint(t4)
+
+return(0);
+}
