@@ -1,6 +1,7 @@
 # Compilo
 Project aiming at building our own mini-c language using Python
 
+UPDATE : Utilisation de notre projet avec le Makefile : il suffit désormais de taper "make run <nom du fichier texte écrit en mini-c> <arguments>" (exemple "make run programme.txt 1 2 3"). Attention : il n'est pas possible dans ce cas d'utiliser des nombres négatifs en argument car nous n'avons pas réussi à dire à l'invité de commande de les lire comme tels. Cependant après avoir exécuté une commande qui fonctionne, cela crée un fichier a.out que vous pourrez ensuite exécuter avec des entiers relatifs (exemple "./a.out -1 -2 -3)
 
 Travail de Simon et Valentin : Tableau - Opération Vectorielles
 Introduction:
