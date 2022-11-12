@@ -1,4 +1,7 @@
 from pprint import pp
+import sys
+input = sys.argv
+filename = input[1]
 import lark
 grammaire = (r"""
 exp : SIGNED_NUMBER                     -> exp_nombre
@@ -279,11 +282,15 @@ def asm_exp(e) :
             pop r10
             push rax
 
+            mov rax, [r10]
             mov rcx, 8
             mul rcx
+            add rax, 8
+            mov rdi, rax
             call malloc
             mov rcx, rax
-
+            mov r15, [r10]
+            mov [rax], r15
 
             mov rbx, [r10]
             pop rdx
@@ -582,7 +589,7 @@ def pp_var_list(vl) :
 
 
 # Assemblage du code
-program = open("programme.txt", "r")
+program = open(filename, "r")
 code = ""
 lines  = program.readlines()
 for line in lines :
